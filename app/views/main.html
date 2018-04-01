@@ -1,13 +1,13 @@
 <div class="col-xs-12">
   <h1>Test</h1>
 
-  <div class="nop col-xs-3">
+  <div class="nop col-xs-3" ng-hide="true">
     <label>Start time: </label>
     <input type="text" name="" ng-model="form.start_date">
     <code class="code">{{form.start_date | date:"dd/MM/yyyy"}}</code>
   </div>
 
-  <div class="nop col-xs-5">
+  <div class="nop col-xs-5" ng-hide="true">
     <div class="nop col-xs-2">
       <button class="btn btn-primary btn-sm" ng-click="form.start_date = time.subDay(form.start_date)">
         <-D</button>
@@ -25,21 +25,19 @@
     </div>
   </div>
 
-  <div class="col-xs-5 sec nop">
-    <div class="alert alert-info" role="alert">
-      Loaded items: {{dataSet.length || 0}}
-    </div>
-  </div>
-
-  <div class="col-xs-12 nop">
+  <div class="col-xs-4 nop">
+  <label>Crypto</label>
     <select ng-options="value for value in coinList" ng-model="form.crypto"></select>
+  </div>
+  <div class="col-xs-4 nop">
+  <label>Strategy</label>
+    <select ng-options="value for value in strategyList" ng-model="strategy"></select>
   </div>
 
   <div class="col-xs-12 nop sec">
-    <button class="btn btn-danger" ng-click="getDataPolo()">Get Data Polo</button>
     <button class="btn btn-success" ng-click="getDataCrypto()">Get Data Crypto</button>
-    <button class="btn btn-info" ng-click="traverseAllModels()">Analyze</button>
-    <button class="btn btn-info" ng-click="traverseAllModelsAndCoins()">Analyze All</button>
+    <button class="btn btn-info" ng-click="getAllCoinData()">Get All Coin Data</button>
+    <button class="btn btn-info" ng-click="runAllModels()">Analyze All</button>
   </div>
 
   <div class="col-xs-12 nop sec">
@@ -51,7 +49,12 @@
     <div class="col-xs-6 nop" ng-repeat="(key, val) in analysis">
       <h4><u>{{key}}</u></h4>
       <ul class="list-group">
-        <li class="list-group-item" ng-repeat="strategy in val">Earnings: <code>${{strategy.funds | comma}}</code> (BUY ON RETURN: <code>{{strategy.ret}}x</code>, SELL ON RETRACEMENT: <code>{{strategy.reb}}x</code>)</li>
+        <li style="font-size: 12px;" class="list-group-item" ng-repeat="strategy in val">Earnings: 
+        <code>${{strategy.funds | comma}}</code> (BUY ON RETURN: 
+        <code>{{strategy.ret}}x</code>, SELL ON RETRACEMENT: 
+        <code>{{strategy.reb}}x</code>)
+         t:{{strategy.transactions}}
+        </li>
       </ul>
     </div>
   </div>

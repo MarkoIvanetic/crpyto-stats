@@ -8,7 +8,7 @@
  * Controller of the cryptoStatsApp
  */
 angular.module('cryptoStatsApp')
-  .controller('MainCtrl', function($scope, $http, $q, StorageService) {
+  .controller('MainCtrl', function($scope, $http, $q, $timeout, StorageService) {
 
     const DATE_FORMAT = "DD/MM/YYYY";
     const INVESTMENT = 100;
@@ -134,9 +134,11 @@ angular.module('cryptoStatsApp')
       var deferred = $q.defer();
       var storage = StorageService.getStorage(crypto);
 
-      if (storage) {
+      if (storage && storage.length) {
         $scope.coinData[crypto] = storage;
-        deferred.resolve(storage);
+        $timeout(function() {
+          deferred.resolve(storage);
+        });
       } else {
 
         var req = {
@@ -152,6 +154,8 @@ angular.module('cryptoStatsApp')
 
             var dataSet = _.map(response.data.Data, function(day) {
               day.date = day.time * 1000;
+
+              day.price = (day.close + day.high + day.low + day.open) / 4;
               delete day.time;
               return day;
             })
@@ -200,14 +204,167 @@ angular.module('cryptoStatsApp')
       $scope.coinList.forEach(function(coin) {
         console.log("Analysing ", coin);
         if ($scope.coinData[coin] && $scope.coinData[coin].length) {
+
           $scope.combinations.forEach(function(model) {
             modelRunResults.push(runModelForCoin(model.ret, model.reb, $scope.coinData[coin]));
           });
+
           modelRunResults.sort(function(a, b) { return (a.funds > b.funds) ? 1 : ((b.funds > a.funds) ? -1 : 0); });
-          $scope.analysis[coin] = modelRunResults.reverse().slice(0, 5);
+          $scope.analysis[$scope.strategy] = $scope.analysis[$scope.strategy] || {};
+          $scope.analysis[$scope.strategy][coin] = modelRunResults.reverse().slice(0, 5);
+
           modelRunResults = [];
+
         }
       });
+
+    };
+
+    $scope.runRsiAnalysis = function() {
+      var modelRunResults = [];
+      $scope.strategy = "rsi"
+      $scope.analysis[$scope.strategy] = $scope.analysis[$scope.strategy] || {};
+
+      $scope.coinList.forEach(function(coin) {
+        console.log("Analysing RSI: ", coin);
+        if ($scope.coinData[coin] && $scope.coinData[coin].length) {
+
+          modelRunResults.push(runRsiForCoin($scope.coinData[coin], coin));
+
+          modelRunResults.sort(function(a, b) { return (a.funds > b.funds) ? 1 : ((b.funds > a.funds) ? -1 : 0); });
+          $scope.analysis[$scope.strategy][coin] = modelRunResults.reverse().slice(0, 5);
+
+          modelRunResults = [];
+
+        }
+      });
+    };
+
+    function runRsiForCoin(data, coin) {
+
+      let portfolio = INVESTMENT + 0;
+      let usd_wallet = INVESTMENT + 0;
+      let btc_wallet = 0;
+      let transactions = [];
+
+      let mode = "buy";
+      
+      $scope.calculateRsi(data);
+
+      // Init buy
+      transactions.push(buy(data[0].date, data[0].price, usd_wallet));
+      mode = "sell";
+
+
+      data.forEach(function(day, index) {
+
+        if (mode === "sell") {
+          if (day.rsi_calculation.rsi >= 70) {
+            transactions.push(sell(day.date, day.price, btc_wallet, day.rsi_calculation.rsi));
+            mode = "buy"
+          };
+
+        } else {
+          if (day.rsi_calculation.rsi <= 30) {
+            transactions.push(buy(day.date, day.price, usd_wallet, day.rsi_calculation.rsi));
+            mode = "sell"
+          };
+        }
+
+      });
+
+      if (btc_wallet > 0) {
+        transactions.push(sell(data[data.length - 1].date, data[data.length - 1].price, btc_wallet));
+      };
+
+      return { "transactions": transactions, "funds": +usd_wallet.toFixed(2) };
+
+
+      function buy(date, price, funds, rsi) {
+        var entry = {
+          "entry": "buy",
+          "date": date,
+          "rsi": rsi,
+          "price": price,
+          "funds": funds,
+          "amount": funds / price,
+        };
+        portfolio = funds;
+        usd_wallet = 0;
+        btc_wallet = funds / price;
+        return entry;
+      };
+
+      function sell(date, price, amount, rsi) {
+        var entry = {
+          "entry": "sell",
+          "date": date,
+          "rsi": rsi,
+          "price": price,
+          "funds": price * amount,
+          "amount": amount,
+        };
+        portfolio = price * amount;
+        usd_wallet = price * amount;
+        usd_wallet = +usd_wallet.toFixed(2);
+        btc_wallet = 0;
+        return entry;
+      };
+
+    };
+    $scope.calculateRsi = function(data) {
+      let startingSet = data.splice(0, 14);
+      let gains_sum = 0;
+      let losses_sum = 0;
+
+      for (let i = 1; i < startingSet.length; i++) {
+        if (startingSet[i] > startingSet[i - 1]) {
+          gains_sum += startingSet[i] - startingSet[i - 1]
+        } else if (startingSet[i] < startingSet[i - 1]) {
+          losses_sum += startingSet[i - 1] - startingSet[i];
+        }
+      }
+
+      let avg_gains = (gains_sum / 14);
+      let avg_loses = (losses_sum / 14);
+      let rs = (avg_gains / avg_loses);
+      let rsi = +(100 - (100 / (1 + rs))).toFixed(2);
+
+      // day 15
+      data[0].rsi_calculation = {
+        rsi: rsi,
+        avg_gains: avg_gains,
+        avg_loses: avg_loses
+      };
+
+
+      // day 16
+      for (let i = 1; i < data.length; i++) {
+        data[i].rsi_calculation = rsiForDay(data[i - 1].rsi_calculation, data[i - 1].price, data[i].price);
+      };
+      // yesterdays stats and price, todays price
+      function rsiForDay(yStats, yPrice, tPrice) {
+        let avg_gains;
+        let avg_loses;
+
+        // [(previous Average Gain) x 13 + current Gain] / 14.
+        if (tPrice > yPrice) {
+          avg_gains = ((yStats.avg_gains * 13) + (tPrice - yPrice)) / 14;
+          avg_loses = ((yStats.avg_loses * 13) / 14);
+        } else if (tPrice < yPrice) {
+          avg_gains = ((yStats.avg_gains * 13) / 14);
+          avg_loses = ((yStats.avg_loses * 13) + (yPrice - tPrice)) / 14;
+        };
+
+        let rs = (avg_gains / avg_loses);
+        let rsi = +(100 - (100 / (1 + rs))).toFixed(2);
+
+        return {
+          rsi: rsi,
+          avg_gains: avg_gains,
+          avg_loses: avg_loses
+        };
+      };
 
 
     };
@@ -289,10 +446,11 @@ angular.module('cryptoStatsApp')
         return entry;
       };
 
+      function applyRSI(day, data) {
+
+      };
+
     };
-    $scope.strategyList = ["static","rsi"];
+    $scope.strategyList = ["static", "rsi"];
     $scope.strategy = "static";
-    $scope.applyStrategy =  function (day, data) {
-      
-    };
   });

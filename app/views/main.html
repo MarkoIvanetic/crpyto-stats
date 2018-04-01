@@ -36,8 +36,9 @@
 
   <div class="col-xs-12 nop sec">
     <button class="btn btn-success" ng-click="getDataCrypto()">Get Data Crypto</button>
-    <button class="btn btn-info" ng-click="getAllCoinData()">Get All Coin Data</button>
-    <button class="btn btn-info" ng-click="runAllModels()">Analyze All</button>
+    <button class="btn btn-info" ng-click="getAllCoinData()">Get Coin Data (All)</button>
+    <button class="btn btn-info" ng-click="runRsiAnalysis()">Run RSI Trade (All)</button>
+    <button class="btn btn-info" ng-click="runAllModels()">Analyze (All)</button>
   </div>
 
   <div class="col-xs-12 nop sec">
@@ -46,14 +47,26 @@
 
   <div class="col-xs-12 nop sec">
     <h5>Starting investment: ${{getInvestment()}}</h5>
-    <div class="col-xs-6 nop" ng-repeat="(key, val) in analysis">
+    <div class="col-xs-6 nop" ng-repeat="(key, val) in analysis[strategy]">
       <h4><u>{{key}}</u></h4>
-      <ul class="list-group">
-        <li style="font-size: 12px;" class="list-group-item" ng-repeat="strategy in val">Earnings: 
-        <code>${{strategy.funds | comma}}</code> (BUY ON RETURN: 
-        <code>{{strategy.ret}}x</code>, SELL ON RETRACEMENT: 
-        <code>{{strategy.reb}}x</code>)
-         t:{{strategy.transactions}}
+      <ul class="list-group" ng-if="strategy === 'static'">
+        <li style="font-size: 12px;" class="list-group-item" ng-repeat="s in val">
+        Earnings: 
+        <code>${{s.funds | comma}}</code> (BUY ON RETURN: 
+        <code>{{s.ret}}x</code>, SELL ON RETRACEMENT: 
+        <code>{{s.reb}}x</code>)
+         t:{{s.transactions}}
+        </li>
+      </ul class="col-xs-12 nop">
+      <ul class="list-group col-xs-12 nop" ng-if="strategy === 'rsi'">
+        <li style="font-size: 12px;" class="list-group-item col-xs-12 nop" ng-repeat="s in val">
+        Earnings: 
+        <code>${{s.funds | comma}}</code>
+         <div class="col-xs-12">
+           <span ng-repeat="info in s.transactions" class="col-xs-12 nop sec">
+             <span ng-class="info.entry === 'sell' ? 'red' : 'green'">{{info.date | date:"MM/dd/yyyy"}} - Price: {{info.price}} / RSI: {{info.rsi}}</span>
+           </span>
+         </div>
         </li>
       </ul>
     </div>
